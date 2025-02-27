@@ -24,7 +24,7 @@ Provide a relevant, informative response to the user's query using the given con
 
 - Answer directly without referring the user to any external links.
 - Use an unbiased, journalistic tone and avoid repeating text.
-- Cite all information using [citation number of the website link] notation without the word citation and website link, matching each part of your answer to its source from the context block given below.
+- Cite all information using [citation number] notation of the website link (dont't write the word citation only the number like [1]), matching each part of your answer to its source from the context block given below.
 
 Context Block:
 {context_block}
@@ -38,18 +38,24 @@ user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 async def search_google(query):
     loop = asyncio.get_event_loop()
-    search_results = await loop.run_in_executor(None, lambda: list(search(query, num_results=3)))
+    search_results = await loop.run_in_executor(None, lambda: list(search(query, num_results=4)))
     search_results = [result for result in search_results if result is not None and result != '']
+    return search_results
+
+def print_sources(urls):
     print("*"*40)
     print("Sources : \n")
-    for num, result in enumerate(search_results):
-        print(f"{num+1}. {result}")
+    for num, url in enumerate(urls):
+        print(f"{num+1}. {url}")
     print("*"*40)
-    return search_results
     
 async def extract_text_from_url(url):
     loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(None, lambda: requests.get(url, headers={"User-Agent": user_agent}))
+    try:
+        response = await loop.run_in_executor(None, lambda: requests.get(url, headers={"User-Agent": user_agent}))
+        response.raise_for_status()
+    except requests.RequestException as e:
+        return None
     soup = await loop.run_in_executor(None, lambda: BeautifulSoup(response.text, "html.parser"))
     text = soup.get_text()
     return text[:10000]
@@ -57,8 +63,17 @@ async def extract_text_from_url(url):
 async def get_all_text_from_urls(query):
     text = ""
     urls = await search_google(query)
-    for num, url in enumerate(urls):
-        text += "\n".join(f"/{num+1}/. /{url}/ /{await extract_text_from_url(url)}/")
+    urls_c = urls.copy()
+    num = 1
+    for url in urls:
+        fetched_text = await extract_text_from_url(url)
+        if fetched_text is not None:
+            text += "\n".join(f"/{num}/. /{url}/ /{fetched_text}/")
+            num += 1
+        else:
+            urls_c.remove(url)
+    print_sources(urls_c)
+            
     return text
 
 def get_search_query(query, prev_messages, client):
@@ -88,7 +103,7 @@ def get_cited_answer(query, context_block, prev_messages, client):
     print("-"*40)
     print("Answer: \n")
     for chunk in response:
-        full_answer += chunk.choices[0].delta.content
+        full_answer += chunk.choices[0].delta.content if chunk.choices[0].delta.content else ""
         print(chunk.choices[0].delta.content, end="")
     print("\n")
     print("-"*40)
