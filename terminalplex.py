@@ -2,10 +2,12 @@ import os
 import requests
 from openai import OpenAI
 from dotenv import load_dotenv
-from googlesearch import search
+from ddgs import DDGS
 from bs4 import BeautifulSoup
 from rich import print
 import asyncio
+
+ddgs = DDGS()
 
 system_prompt_search = """You are a helpful assistant whose primary goal is to reformulate user query for Google search to get valuable knowledge for further answer."""
 search_prompt = """
@@ -38,9 +40,13 @@ user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 
 async def search_google(query):
     loop = asyncio.get_event_loop()
-    search_results = await loop.run_in_executor(None, lambda: list(search(query, num_results=4)))
-    search_results = [result for result in search_results if result is not None and result != '']
-    return search_results
+    try:
+        search_results = await loop.run_in_executor(None, lambda: list(ddgs.text(query, max_results=4)))
+        urls = [result['href'] for result in search_results if result and 'href' in result]
+        return urls
+    except Exception as e:
+        print(f"Error during Google search: {e}")
+        return []
 
 def print_sources(urls):
     print("*"*40)
@@ -85,6 +91,8 @@ def get_search_query(query, prev_messages, client):
         messages=[{"role": "system", "content": system_prompt_search}, *new_messages],
         max_tokens=50,
     )
+
+    print(f"Search Query: {response.choices[0].message.content}\n")
     return response.choices[0].message.content
 
 def get_cited_answer(query, context_block, prev_messages, client):
@@ -95,7 +103,7 @@ def get_cited_answer(query, context_block, prev_messages, client):
     response = client.chat.completions.create(
         model=os.getenv("MODEL_NAME"),
         messages=[{"role": "system", "content": system_prompt_cited_answer}, *new_messages],
-        max_tokens=os.getenv("MAX_TOKENS"),
+        max_tokens=int(os.getenv("MAX_TOKENS")),
         stream=True
     )
 
