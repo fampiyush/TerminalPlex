@@ -38,14 +38,14 @@ User Query:
 
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
 
-async def search_google(query):
+async def search_ddg(query):
     loop = asyncio.get_event_loop()
     try:
         search_results = await loop.run_in_executor(None, lambda: list(ddgs.text(query, max_results=4)))
         urls = [result['href'] for result in search_results if result and 'href' in result]
         return urls
     except Exception as e:
-        print(f"Error during Google search: {e}")
+        print(f"Error during DuckDuckGo search: {e}")
         return []
 
 def print_sources(urls):
@@ -68,7 +68,7 @@ async def extract_text_from_url(url):
 
 async def get_all_text_from_urls(query):
     text = ""
-    urls = await search_google(query)
+    urls = await search_ddg(query)
     urls_c = urls.copy()
     num = 1
     for url in urls:
